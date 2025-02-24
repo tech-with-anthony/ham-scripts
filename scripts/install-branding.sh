@@ -9,7 +9,7 @@
 #Install branding
 echo "Installing branding..."
 
-cp ~/ham-scripts-os/logo/ham-scripts_tth_logo.png $HOME/Pictures
+cp $HOME/ham-scripts-os/logo/ham-scripts_tth_logo.png $HOME/Pictures
 
 #dconf write /org/gnome/desktop/background/picture-uri-dark "'file:///~/Pictures/ham-scripts_tth_logo.png'"
 #dconf write /org/gnome/desktop/background/picture-uri "'file:///~/Pictures/ham-scripts_tth_logo.png'"
