@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Winlink
+GenericName=Winlink
+Comment=Email Client
+Exec=/usr/bin/wine $HOME/.wine/drive_c/$HOME/.wine/drive_c/Winlink/Winlink_Express.exe
+Icon=
+Terminal=false
+Type=Application
+Categories=Network;HamRadio;"""

@@ -1,0 +1,23 @@
+Once the Vara script has successfully completed the install process, you need to edit a com port to bind to your rig control device.
+
+In a terminal type the following:
+
+ls /dev/tty* to identify the port for your usb rig control device.
+
+Next you need to create a COM port that the windows program can understand:
+
+In a terminal type:
+
+wine regedit
+
+A regedit window will open. From there you need to navigate through:
+
+HKEY_LOCAL_MACHINE\Software\Wine\Ports
+
+Right click in the open field and select New String Value
+Edit the name to 'COM#' # = the number you decide to use
+Edit the date value of the new port to point to the linux port ie. /dev/ttyUSB0
+
+Once done, you can close out of the window and start your programs.
+
+*Follow the same steps for your GPS device*
