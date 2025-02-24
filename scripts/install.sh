@@ -5,11 +5,12 @@
 # Updated    : 21 February 2025
 # Purpose    : Create master install command
 
+sudo -u $SUDO_USER ./install-branding.sh
+
 ./functions.sh
 
 exitIfNotRoot
 
-sudo -u $SUDO_USER ./install-branding.sh
 sudo -u $SUDO_USER ./install-wine.sh
 sudo -u $SUDO_USER ./install-vara-hf.sh
 sudo -u $SUDO_USER ./install-vara-fm.sh
