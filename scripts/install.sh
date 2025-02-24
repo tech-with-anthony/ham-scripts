@@ -10,7 +10,7 @@
 exitIfNotRoot
 
 sudo -u $SUDO_USER ./install-branding.sh
-./install-wine.sh
+sudo -u $SUDO_USER ./install-wine.sh
 sudo -u $SUDO_USER ./install-vara-hf.sh
 sudo -u $SUDO_USER ./install-vara-fm.sh
 sudo -u $SUDO_USER ./install-varac.sh

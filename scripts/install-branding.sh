@@ -9,9 +9,11 @@
 #Install branding
 echo "Installing branding..."
 
-cp ~/ham-scripts-os/logo/ham-scripts_tth_logo.png /usr/share/backgrounds/
-cp ~/ham-scripts-os/logo/ham-scripts_tth_logo.png /usr/share/backgrounds/warty-final-ubuntu.png
+cp ~/ham-scripts-os/logo/ham-scripts_tth_logo.png ~/Pictures
 
-gsettings set org.gnome.desktop.background picture-uri file:////usr/share/backgrounds/ham-scripts_tth_logo.png
+dconf write /org/gnome/desktop/background/picture-uri-dark "'file:///~/Pictures/ham-scripts_tth_logo.png'"
+dconf write /org/gnome/desktop/background/picture-uri "'file:///~/Pictures/ham-scripts_tth_logo.png'"
+gsettings set org.gnome.desktop.background picture-uri 'file:///~/Pictures/ham-scripts_tth_logo.png'
+gsettings set org.gnome.desktop.background picture-uri-dark 'file:///~/Pictures/ham-scripts_tth_logo.png'
 
 echo "Branding installed"
