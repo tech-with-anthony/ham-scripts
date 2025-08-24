@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Author  : Anthony Woodward
 # Date    : 23 February 2025

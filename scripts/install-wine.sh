@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Author     : Anthony Woodward
 # Date       : 23 February 2025
@@ -14,12 +14,21 @@ sudo apt update
 #Install wine
 echo "Installing wine..."
 
-sudo add-apt-repository ppa:ubuntu-wine/ppa
-sudo apt-get update
-sudo apt-get install wine wine10.1
+# Check for an existing i386 architecture
+ARCH_OUT=$(dpkg --print-foreign-architectures | grep i386)
+[ $? -ne 0 ] && dpkg --add-architecture i386
+
+#if [ ! -e "/etc/apt/keyrings/winehq-archive.key" ]; then
+#  echo "Adding apt keys for official wine repo"
+#  mkdir -pm755 /etc/apt/keyrings
+#  wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
+#  wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/$(lsb_release -sc)/winehq-$(lsb_release -sc).sources
+#  apt update
+# apt install --install-recommends winehq-stable
+#fi
 
 apt install \
-  #wine \
+  wine \
   winetricks \
   exe-thumbnailer \
   -y
@@ -27,14 +36,6 @@ apt install \
 dialog --textbox wine.txt 15 74
 tput sgr 0 && clear
 
-
-
-#sudo dpkg --add-architecture i386
-#sudo mkdir -pm755 /etc/apt/keyrings
-#sudo wget -O /etc/apt/keyrings/winehq-archive.key https://dl.winehq.org/wine-builds/winehq.key
-#sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/debian/dists/bullseye/winehq-bullseye.sources
-#sudo apt update
-#sudo apt install --install-recommends winehq-stable -y
 
 #Install Winetricks
 #echo "Installing winetricks..."
