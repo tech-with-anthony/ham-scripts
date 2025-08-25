@@ -10,7 +10,7 @@ set -euo pipefail
 APP="js8call"
 PRETTY="JS8Call"
 VERSION="${JS8CALL_VERSION:-2.2.0}"
-FILE="js8call_${VERSION}_20.04-Linux-Desktop.x86_64.AppImage"
+FILE="js8call-${VERSION}-Linux-Desktop.x86_64.AppImage"
 URL="${JS8CALL_URL:-http://files.js8call.com/${VERSION}/${FILE}}"
 
 req curl
