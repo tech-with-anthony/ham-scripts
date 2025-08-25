@@ -9,8 +9,9 @@ set -euo pipefail
 
 APP="wsjtx"
 PRETTY="WSJT-X"
-SF_BASE="${WSJTX_SF_BASE:-https://sourceforge.net/projects/wsjt/files}"
-UA="${WSJTX_UA:-Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Safari/537.36}"
+
+# Fixed .deb URL (2.7.0 amd64)
+URL="${WSJTX_URL:-https://sourceforge.net/projects/wsjt/files/wsjtx-2.7.0/wsjtx_2.7.0_amd64.deb/download}"
 
 req curl ar tar
 
@@ -72,31 +73,12 @@ EOF
   command -v gtk-update-icon-cache  >/dev/null 2>&1 && gtk-update-icon-cache -f "$(dirname "$(dirname "$ICON_DIR")")" >/dev/null 2>&1 || true
 }
 
-resolve_latest_url() {
-  [ -n "${WSJTX_URL:-}" ] && { echo "$WSJTX_URL"; return 0; }
-
-  echo "Discovering latest WSJT-X version from SourceForge…"
-  local versions latest_ver ver_page deb_path
-  versions="$(curl -fsSL -A "$UA" "$SF_BASE/" | grep -Eo 'wsjtx-[0-9]+(\.[0-9]+){1,2}' | sort -uV)"
-  latest_ver="$(printf '%s\n' "$versions" | tail -n1 || true)"
-  [ -n "$latest_ver" ] || { echo "Could not detect latest version"; return 1; }
-
-  ver_page="$SF_BASE/${latest_ver}/"
-  deb_path="$(curl -fsSL -A "$UA" "$ver_page" \
-    | grep -Eo '/projects/wsjt/files/'"${latest_ver}"'/[^"]*wsjtx_[0-9][0-9._-]*_amd64\.deb' \
-    | head -n1 || true)"
-  [ -n "$deb_path" ] || { echo "No amd64 .deb under $ver_page"; return 1; }
-
-  echo "https://sourceforge.net${deb_path}/download"
-}
-
 # ---------- install ----------
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
-URL="$(resolve_latest_url)"
-echo "Download URL: $URL"
-curl -fL -A "$UA" "$URL" -o "$TMPDIR/wsjtx.deb"
+echo "Downloading ${PRETTY} package…"
+curl -fL "$URL" -o "$TMPDIR/wsjtx.deb"
 
 ( cd "$TMPDIR" && ar x wsjtx.deb )
 
@@ -116,7 +98,7 @@ esac
 [ -x "$TMPDIR/usr/bin/wsjtx" ] || { echo "wsjtx binary missing in package"; exit 1; }
 install -Dm755 "$TMPDIR/usr/bin/wsjtx" "$BIN_DIR/wsjtx"
 
-# (optional) if .deb contains an icon, keep it too
+# if .deb shipped an icon, keep it
 if [ -f "$TMPDIR/usr/share/icons/hicolor/256x256/apps/wsjtx.png" ]; then
   install -Dm644 "$TMPDIR/usr/share/icons/hicolor/256x256/apps/wsjtx.png" "$ICON_DIR/wsjtx.png"
 fi
