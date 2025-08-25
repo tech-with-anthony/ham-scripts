@@ -11,7 +11,7 @@ APP="js8spotter"
 PRETTY="JS8Spotter"
 
 # Accepts "1.17" and converts to 117 for ZIP filename
-VERSION="${JS8SPOTTER_VERSION:-1.17}"
+VERSION="${JS8SPOTTER_VERSION:-1.14b}"
 VER_NODOT="${VERSION//./}"
 BASE_URL="${JS8SPOTTER_BASE_URL:-https://kf7mix.com/files/js8spotter}"
 FILE="${JS8SPOTTER_FILE:-js8spotter-${VER_NODOT}.zip}"

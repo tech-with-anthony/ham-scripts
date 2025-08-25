@@ -9,34 +9,27 @@ set -euo pipefail
 
 APP="wsjtx"
 PRETTY="WSJT-X"
+VER="2.7.0"
+TGZ_URL="${WSJTX_TGZ_URL:-https://downloads.sourceforge.net/project/wsjt/wsjtx-${VER}/wsjtx-${VER}.tgz}"
 
-# Fixed download URL (WSJT-X 2.7.0 amd64 .deb)
-URL="https://sourceforge.net/projects/wsjt/files/wsjtx-2.7.0/wsjtx_2.7.0_amd64.deb/download"
+req curl tar
 
-req curl ar tar
+PREFIX_OPT="$PREFIX/opt"
+APPDIR="$PREFIX_OPT/wsjtx-$VER"          # ~/.local/opt/wsjtx-2.7.0
+BINDST="$BIN_DIR/$APP"                   # ~/.local/bin/wsjtx
 
-# ---------- helper: ensure icon + desktop + pin ----------
+# --- helper from env.sh expected: find_repo_icon ---
 pin_app_taskbar() {
   local app="$1" pretty="$2" icon_base="${3:-$1}"
   local desktop="$DESKTOP_DIR/${app}.desktop"
-  local icon_dst="$ICON_DIR/${app}.png"
+  local icon_src icon_dst="$ICON_DIR/${app}.png"
 
-  # Use repo icon
-  local icon_src
   icon_src="$(find_repo_icon "$icon_base" || true)"
-  if [ -n "${icon_src:-}" ]; then
-    install -Dm644 "$icon_src" "$icon_dst"
-  else
-    echo "warn: no repo icon found for ${icon_base}"
-  fi
+  [ -n "${icon_src:-}" ] && install -Dm644 "$icon_src" "$icon_dst" || echo "warn: no repo icon for $icon_base"
 
-  # locate executable
-  local exe
-  exe="$(command -v "$app" 2>/dev/null || true)"
-  [ -z "$exe" ] && [ -x "$BIN_DIR/$app" ] && exe="$BIN_DIR/$app"
-  [ -z "$exe" ] && exe="$app"
+  # Exec points to our wrapper/symlink in ~/.local/bin
+  local exe="$BINDST"
 
-  # create/update .desktop
   if [ -f "$desktop" ]; then
     sed -i "s|^Exec=.*$|Exec=${exe}|g" "$desktop"
     if grep -q "^Icon=" "$desktop"; then
@@ -56,7 +49,7 @@ Terminal=false
 EOF
   fi
 
-  # pin to favorites (GNOME/Cinnamon only)
+  # Pin to GNOME/Cinnamon favorites
   local desk="${XDG_CURRENT_DESKTOP:-${DESKTOP_SESSION:-}}"
   local dlc schema key appid="${app}.desktop"
   dlc="$(printf '%s' "$desk" | tr '[:upper:]' '[:lower:]')"
@@ -70,41 +63,45 @@ EOF
     local cur new
     cur="$(gsettings get "$schema" "$key")"
     new="$(printf '%s' "$cur" | sed -E 's/^\[|\]$//g')"
-    echo "$new" | grep -q "'$appid'" || \
-      gsettings set "$schema" "$key" "[$([ -n "$new" ] && echo "$new, ")'${appid}']"
+    echo "$new" | grep -q "'$appid'" || gsettings set "$schema" "$key" "[$([ -n "$new" ] && echo "$new, ")'${appid}']"
   fi
 
-  # refresh caches
   command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DESKTOP_DIR" >/dev/null 2>&1 || true
   command -v gtk-update-icon-cache  >/dev/null 2>&1 && gtk-update-icon-cache -f "$(dirname "$(dirname "$ICON_DIR")")" >/dev/null 2>&1 || true
 }
 
-# ---------- install ----------
-TMPDIR="$(mktemp -d)"
-trap 'rm -rf "$TMPDIR"' EXIT
+# --- install from tarball ---
+TMPDIR="$(mktemp -d)"; trap 'rm -rf "$TMPDIR"' EXIT
+echo "Downloading ${PRETTY} ${VER} tarball…"
+curl -fL "$TGZ_URL" -o "$TMPDIR/wsjtx.tgz"
 
-echo "Downloading ${PRETTY} 2.7.0…"
-curl -fL "$URL" -o "$TMPDIR/wsjtx.deb"
+mkdir -p "$PREFIX_OPT"
+tar -xzf "$TMPDIR/wsjtx.tgz" -C "$PREFIX_OPT"
+# tarball usually extracts to wsjtx-${VER}/* with bin/ and share/
+# Ensure predictable path name (some tarballs include architecture suffixes)
+if [ ! -d "$APPDIR" ]; then
+  # try to detect actual dir
+  realdir="$(find "$PREFIX_OPT" -maxdepth 1 -type d -name "wsjtx-${VER}*" | head -n1 || true)"
+  [ -n "$realdir" ] && mv -f "$realdir" "$APPDIR"
+fi
 
-( cd "$TMPDIR" && ar x wsjtx.deb )
+# sanity: must have a binary
+[ -x "$APPDIR/bin/wsjtx" ] || { echo "wsjtx binary not found inside tarball"; exit 1; }
 
-data_tar="$(ls "$TMPDIR"/data.tar.* 2>/dev/null | head -n1 || true)"
-[ -n "$data_tar" ] || { echo "data.tar.* not found in package"; exit 1; }
+# link into ~/.local/bin
+mkdir -p "$BIN_DIR"
+ln -sf "$APPDIR/bin/wsjtx" "$BINDST"
 
-case "$data_tar" in
-  *.tar.xz) tar -xJf "$data_tar" -C "$TMPDIR" ;;
-  *.tar.gz) tar -xzf "$data_tar" -C "$TMPDIR" ;;
-  *.tar.zst)
-    req unzstd
-    unzstd -c "$data_tar" | tar -xf - -C "$TMPDIR"
-    ;;
-  *) tar -xf "$data_tar" -C "$TMPDIR" ;;
-esac
+# (Optional) Ensure data dir is in expected place alongside (the tarball ships share/wsjtx)
+[ -d "$APPDIR/share/wsjtx" ] || echo "warn: wsjtx share dir not found; resources may be missing"
 
-[ -x "$TMPDIR/usr/bin/wsjtx" ] || { echo "wsjtx binary missing in package"; exit 1; }
-install -Dm755 "$TMPDIR/usr/bin/wsjtx" "$BIN_DIR/wsjtx"
+# (Optional) suggest runtime deps if missing
+missing=$(ldd "$APPDIR/bin/wsjtx" | awk '/not found/{print $1}')
+if [ -n "$missing" ]; then
+  echo "⚠ Missing runtime libs:"
+  echo "$missing"
+  echo "On Debian/Ubuntu you may need: sudo apt-get install -y libqt5widgets5 libqt5network5 libqt5multimedia5 libfftw3-3 libgfortran5 libhamlib4"
+fi
 
-# use repo icon explicitly (will overwrite)
 pin_app_taskbar "$APP" "$PRETTY" "$APP"
-
-echo "✓ ${PRETTY} 2.7.0 installed at $BIN_DIR/wsjtx"
+echo "✓ ${PRETTY} ${VER} installed at $APPDIR and linked to $BINDST"
