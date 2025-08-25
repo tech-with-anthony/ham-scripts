@@ -32,7 +32,7 @@ sudo apt install -y gdebi-core
 ```
 4) JS8Spotter’s Linux Python deps (Tk & Pillow’s ImageTk)
 ```
-sudo apt install -y python3 python3-tk python3-pil python3-pil.imagetk sqlite3
+sudo apt install -y python3 python3-tk python3-pil python3-pil.imagetk sqlite3 tcl tk python3-tk
 ```
 Why #4? Per the JS8Spotter manual, Linux users need Python 3 with Tkinter + Pillow ImageTk to run the program; JS8Spotter talks to a running JS8Call instance over TCP and isn’t a standalone modem. 
 [kf7mix.com](https://kf7mix.com/files/js8spotter/JS8Spotter_Manual_v0.7.pdf?utm_source=chatgpt.com)
