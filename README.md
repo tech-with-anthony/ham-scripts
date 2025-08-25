@@ -1,4 +1,4 @@
-Ham Scripts OS
+Ham Scripts
 
 A collection of user-level installers for common ham radio applications on Linux.
 
