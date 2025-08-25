@@ -46,7 +46,6 @@ run "./install-branding.sh"
 run "./install-js8call.sh"
 run "./install-wsjtx.sh"
 run "./install-js8spotter.sh"
-run "./pin-apps.sh"
 run "./install-wine.sh"
 
 # show post-install notes if present

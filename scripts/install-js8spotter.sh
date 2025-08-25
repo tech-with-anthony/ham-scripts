@@ -10,8 +10,8 @@ set -euo pipefail
 APP_NAME="JS8Spotter"
 APP_ID="js8spotter"
 
-# Version + ZIP download URL (update these for new releases)
-VERSION="1.14b"
+# Version + ZIP download URL (notice: VERSION has no dot, URL uses it directly)
+VERSION="117"
 ZIP_URL="https://kf7mix.com/files/js8spotter/js8spotter-${VERSION}.zip"
 
 # Custom icon (PNG) from your repo — update path/branch if you move it
@@ -55,50 +55,13 @@ create_icon() {
 }
 
 detect_main_executable() {
-  # Heuristics to find the thing to run inside $INSTALL_DIR
-  # Order: AppImage > native executable/script > Python script
   local candidate
-
-  # 1) AppImage
   candidate="$(find "$INSTALL_DIR" -type f -iname '*js8spotter*.AppImage' -print -quit || true)"
-  if [ -n "${candidate:-}" ]; then
-    echo "$candidate"
-    return 0
-  fi
-
-  # 2) Executable files with a relevant name
+  [ -n "$candidate" ] && echo "$candidate" && return 0
   candidate="$(find "$INSTALL_DIR" -type f -iname '*js8spotter*' -perm -u+x -print -quit || true)"
-  if [ -n "${candidate:-}" ]; then
-    echo "$candidate"
-    return 0
-  fi
-
-  # 3) Shell launchers
-  candidate="$(find "$INSTALL_DIR" -type f \( -iname '*.sh' -o -iname '*run*' \) -perm -u+x -print | grep -i js8spotter | head -n1 || true)"
-  if [ -n "${candidate:-}" ]; then
-    echo "$candidate"
-    return 0
-  fi
-
-  # 4) Python script fallback
+  [ -n "$candidate" ] && echo "$candidate" && return 0
   candidate="$(find "$INSTALL_DIR" -type f -iname '*js8spotter*.py' -print -quit || true)"
-  if [ -n "${candidate:-}" ]; then
-    echo "python3::${candidate}"
-    return 0
-  fi
-
-  # 5) Last resort: any AppImage / any executable file
-  candidate="$(find "$INSTALL_DIR" -type f -iname '*.AppImage' -print -quit || true)"
-  if [ -n "${candidate:-}" ]; then
-    echo "$candidate"
-    return 0
-  fi
-  candidate="$(find "$INSTALL_DIR" -type f -perm -u+x -print -quit || true)"
-  if [ -n "${candidate:-}" ]; then
-    echo "$candidate"
-    return 0
-  fi
-
+  [ -n "$candidate" ] && echo "python3::${candidate}" && return 0
   echo ""
   return 1
 }
@@ -110,19 +73,15 @@ create_wrapper() {
 set -euo pipefail
 APPDIR="${INSTALL_DIR}"
 cd "\$APPDIR"
-
 TARGET="$target"
-
 if [[ "\$TARGET" == python3::* ]]; then
   exec python3 "\${TARGET#python3::}" "\$@"
 else
-  # Ensure executable bit (especially for AppImages or shipped binaries)
   chmod +x "\$TARGET" || true
   exec "\$TARGET" "\$@"
 fi
 EOF
   sudo chmod +x "$SYMLINK_BIN"
-  echo "Created launcher wrapper: $SYMLINK_BIN"
 }
 
 create_desktop_file() {
@@ -139,56 +98,39 @@ Type=Application
 Categories=HamRadio;Network;Utility;
 StartupNotify=true
 EOF
-  echo "Created launcher: $DESKTOP_FILE"
   update-desktop-database >/dev/null 2>&1 || true
 }
 
 pin_to_taskbar() {
-  if ! have gsettings; then
-    echo "gsettings not found; cannot pin to GNOME taskbar automatically."
-    return 0
-  fi
+  if ! have gsettings; then return 0; fi
   local key="org.gnome.shell favorite-apps"
   local current
   current="$(gsettings get ${key})" || current="[]"
-
   local new_list
   new_list="$(python3 - "$current" "$(basename "$DESKTOP_FILE")" <<'PY'
 import ast, sys
-arr_str = sys.argv[1]
-target = sys.argv[2]
-try:
-    arr = ast.literal_eval(arr_str)
-    if not isinstance(arr, list):
-        arr = []
-except Exception:
-    arr = []
-if target not in arr:
-    arr.append(target)
+arr_str = sys.argv[1]; target = sys.argv[2]
+try: arr = ast.literal_eval(arr_str)
+except Exception: arr = []
+if not isinstance(arr, list): arr = []
+if target not in arr: arr.append(target)
 print(str(arr).replace("'", '"'))
 PY
 )"
-  echo "Setting GNOME favorites to include: $(basename "$DESKTOP_FILE")"
   gsettings set ${key} "${new_list}"
 }
 
 ### ====== MAIN ==========================================================================
 
-# 1) Tools
 install_pkgs
-
-# 2) Download ZIP
 mkdir -p "$WORKDIR"
 download_file "$ZIP_URL" "$ZIP_PATH"
 
-# 3) Extract
 rm -rf "$EXTRACT_DIR"
 mkdir -p "$EXTRACT_DIR"
 unzip -q "$ZIP_PATH" -d "$EXTRACT_DIR"
 
-# 4) Move to /opt/<app>-<version>
 sudo rm -rf "$INSTALL_DIR"
-# If the ZIP contains a single top-level dir, move that; else move all contents
 if [ "$(find "$EXTRACT_DIR" -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1 ]; then
   top="$(find "$EXTRACT_DIR" -mindepth 1 -maxdepth 1 -type d)"
   sudo mv "$top" "$INSTALL_DIR"
@@ -197,34 +139,18 @@ else
   sudo mv "$EXTRACT_DIR"/* "$INSTALL_DIR"/
 fi
 
-# 5) Detect main executable and create wrapper
 main_exec="$(detect_main_executable || true)"
-if [ -z "${main_exec:-}" ]; then
-  echo "WARNING: Could not detect the main executable automatically in: $INSTALL_DIR"
-  echo "You can edit the wrapper at: $SYMLINK_BIN after we create it with a placeholder."
-  # create a placeholder wrapper that opens the install dir
-  sudo tee "$SYMLINK_BIN" >/dev/null <<EOF
-#!/usr/bin/env bash
-cd "${INSTALL_DIR}"
-echo "Could not auto-detect JS8Spotter executable. Please edit ${SYMLINK_BIN} to launch the correct file."
-ls -la
-EOF
-  sudo chmod +x "$SYMLINK_BIN"
-else
+if [ -n "${main_exec:-}" ]; then
   create_wrapper "$main_exec"
+else
+  echo "Could not auto-detect main executable. Edit $SYMLINK_BIN manually."
 fi
 
-# 6) Icon + desktop entry
 create_icon
 create_desktop_file
-
-# 7) Pin to taskbar
 pin_to_taskbar
 
-echo
 echo "✅ ${APP_NAME} ${VERSION} installed to ${INSTALL_DIR}"
 echo "   Command: ${SYMLINK_BIN}"
 echo "   Launcher: ${DESKTOP_FILE}"
 echo "   Icon: ${ICON_PATH}"
-echo "   If a different file should be launched, edit ${SYMLINK_BIN} to point at it."
-echo "   To update later, change VERSION and ZIP_URL at the top, then re-run this script."
