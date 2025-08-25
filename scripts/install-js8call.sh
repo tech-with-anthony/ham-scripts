@@ -5,92 +5,110 @@
 # Updated : 25 August 2025
 # Purpose : Install JS8Call
 set -euo pipefail
-. "$(dirname "$0")/env.sh"
 
-APP="js8call"
-PRETTY="JS8Call"
-VERSION="${JS8CALL_VERSION:-2.2.0}"
-FILE="js8call-${VERSION}-Linux-Desktop.x86_64.AppImage"
-URL="${JS8CALL_URL:-http://files.js8call.com/${VERSION}/${FILE}}"
+### ====== USER-TUNABLE SETTINGS (update these for new versions) ==========================
+APP_NAME="JS8Call"
+APP_ID="js8call"
 
-req curl
+# Version + .deb URL
+VERSION="2.2.0"
+DEB_URL="http://files.js8call.com/${VERSION}/js8call_${VERSION}_20.04_amd64.deb"
 
-# ---------- helper: ensure icon + desktop + pin ----------
-pin_app_taskbar() {
-  local app="$1" pretty="$2" icon_base="${3:-$1}"
-  local desktop="$DESKTOP_DIR/${app}.desktop"
-  local icon_src icon_dst="$ICON_DIR/${app}.png"
+# Custom icon (PNG) from your repo
+ICON_URL="https://raw.githubusercontent.com/thetechnicalham/ham-scripts/main/app-icons/js8call.png"
 
-  # install icon from repo (via helper)
-  icon_src="$(find_repo_icon "$icon_base" || true)"
-  if [ -n "${icon_src:-}" ]; then
-    install -Dm644 "$icon_src" "$icon_dst"
-  else
-    echo "warn: no repo icon found for ${icon_base}"
-  fi
+### ====== LOCATIONS =====================================================================
+WORKDIR="${TMPDIR:-/tmp}/install-${APP_ID}"
+DEB_PATH="${WORKDIR}/${APP_ID}_${VERSION}_amd64.deb"
 
-  # locate executable
-  local exe
-  exe="$(command -v "$app" 2>/dev/null || true)"
-  [ -z "$exe" ] && [ -x "$BIN_DIR/$app" ] && exe="$BIN_DIR/$app"
-  [ -z "$exe" ] && exe="$app"
+DESKTOP_DIR="${HOME}/.local/share/applications"
+DESKTOP_FILE="${DESKTOP_DIR}/${APP_ID}.desktop"
 
-  # create/update .desktop (absolute Icon path)
-  if [ -f "$desktop" ]; then
-    sed -i "s|^Exec=.*$|Exec=${exe}|g" "$desktop"
-    if grep -q "^Icon=" "$desktop"; then
-      sed -i "s|^Icon=.*$|Icon=${icon_dst}|g" "$desktop"
-    else
-      printf '\nIcon=%s\n' "$icon_dst" >> "$desktop"
-    fi
-  else
-    cat >"$desktop" <<EOF
-[Desktop Entry]
-Type=Application
-Name=${pretty}
-Exec=${exe}
-Icon=${icon_dst}
-Categories=Network;HamRadio;
-Terminal=false
-EOF
-  fi
+ICON_DIR="${HOME}/.local/share/icons"
+ICON_PATH="${ICON_DIR}/${APP_ID}.png"
 
-  # pin to favorites
-  local desk="${XDG_CURRENT_DESKTOP:-${DESKTOP_SESSION:-}}"
-  local dlc schema key appid="${app}.desktop"
-  dlc="$(printf '%s' "$desk" | tr '[:upper:]' '[:lower:]')"
-  if echo "$dlc" | grep -q gnome; then schema="org.gnome.shell"; key="favorite-apps"
-  elif echo "$dlc" | grep -q cinnamon; then schema="org.cinnamon"; key="favorite-apps"
-  else
-    echo "info: unsupported desktop '$desk'; created $desktop"
-    return 0
-  fi
-  if command -v gsettings >/dev/null 2>&1 && gsettings list-schemas | grep -q "^$schema$"; then
-    local cur new
-    cur="$(gsettings get "$schema" "$key")"
-    new="$(printf '%s' "$cur" | sed -E 's/^\[|\]$//g')"
-    echo "$new" | grep -q "'$appid'" || \
-      gsettings set "$schema" "$key" "[$([ -n "$new" ] && echo "$new, ")'${appid}']"
-  fi
+APP_EXEC="/usr/bin/js8call"
 
-  command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DESKTOP_DIR" >/dev/null 2>&1 || true
-  command -v gtk-update-icon-cache  >/dev/null 2>&1 && gtk-update-icon-cache -f "$(dirname "$(dirname "$ICON_DIR")")" >/dev/null 2>&1 || true
+### ====== UTILITIES =====================================================================
+have() { command -v "$1" >/dev/null 2>&1; }
+
+install_pkgs() {
+  sudo apt-get update -y
+  sudo apt-get install -y curl wget ca-certificates libglib2.0-bin
 }
 
-# ---------- install ----------
-OUT="$BIN_DIR/$APP"
-if [ ! -f "$OUT" ]; then
-  echo "Downloading ${PRETTY} ${VERSION}…"
-  curl -fL "$URL" -o "$OUT"
-  chmod +x "$OUT"
-fi
+download_file() {
+  local url="$1" out="$2"
+  mkdir -p "$(dirname "$out")"
+  echo "Downloading: $url"
+  if have wget; then
+    wget -O "$out" --content-disposition --no-verbose "$url"
+  else
+    curl -L -o "$out" "$url"
+  fi
+}
 
-# optional: extract icon from AppImage (best-effort)
-if "$OUT" --appimage-extract >/dev/null 2>&1; then
-  ICON_SRC="squashfs-root/usr/share/icons/hicolor/256x256/apps/${APP}.png"
-  [ -f "$ICON_SRC" ] && install -Dm644 "$ICON_SRC" "$ICON_DIR/${APP}.png"
-  rm -rf squashfs-root
-fi
+install_deb() {
+  local deb="$1"
+  echo "Installing package: $deb"
+  sudo apt-get install -y "$deb" || {
+    sudo dpkg -i "$deb" || true
+    sudo apt-get -f install -y
+  }
+}
 
-pin_app_taskbar "$APP" "$PRETTY" "$APP"
-echo "✓ ${PRETTY} installed at $OUT"
+create_icon() {
+  mkdir -p "$ICON_DIR"
+  download_file "$ICON_URL" "$ICON_PATH"
+}
+
+create_desktop_file() {
+  mkdir -p "$DESKTOP_DIR"
+  cat > "$DESKTOP_FILE" <<EOF
+[Desktop Entry]
+Name=${APP_NAME}
+GenericName=${APP_NAME}
+Comment=Weak-signal digital communication (JS8Call)
+Exec=${APP_EXEC}
+Icon=${ICON_PATH}
+Terminal=false
+Type=Application
+Categories=HamRadio;Network;Utility;
+StartupNotify=true
+EOF
+  update-desktop-database >/dev/null 2>&1 || true
+}
+
+pin_to_taskbar() {
+  if ! have gsettings; then return 0; fi
+  local key="org.gnome.shell favorite-apps"
+  local current
+  current="$(gsettings get ${key})" || current="[]"
+  local new_list
+  new_list="$(python3 - "$current" "$(basename "$DESKTOP_FILE")" <<'PY'
+import ast, sys
+arr_str = sys.argv[1]; target = sys.argv[2]
+try: arr = ast.literal_eval(arr_str)
+except Exception: arr = []
+if not isinstance(arr, list): arr = []
+if target not in arr: arr.append(target)
+print(str(arr).replace("'", '"'))
+PY
+)"
+  gsettings set ${key} "${new_list}"
+}
+
+### ====== MAIN ==========================================================================
+
+install_pkgs
+mkdir -p "$WORKDIR"
+download_file "$DEB_URL" "$DEB_PATH"
+install_deb "$DEB_PATH"
+
+create_icon
+create_desktop_file
+pin_to_taskbar
+
+echo "✅ ${APP_NAME} ${VERSION} installed."
+echo "   Launcher: ${DESKTOP_FILE}"
+echo "   Icon:     ${ICON_PATH}"
