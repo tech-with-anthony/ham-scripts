@@ -39,9 +39,18 @@ To install:
 -Go to releases
 -Select the latest release
 -copy the ```tar.gz``` file url
--In a Linux terminal run ```wget (copied url)```
--enter ```cd ham-scripts/scripts```
--Finally, enter ```./install.sh``` 
+-In a Linux terminal run 
+```
+wget (copied url)
+```
+-enter
+```
+cd ham-scripts/scripts
+```
+-Finally, enter 
+```
+./install.sh
+``` 
 
 Contributing
 
