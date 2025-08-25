@@ -12,7 +12,7 @@ if [ "${EUID:-$(id -u)}" -eq 0 ]; then
   exit 1
 fi
 
-. "./scripts/env.sh"
+. "./env.sh"
 
 # optional apt update before doing anything else
 if command -v apt-get >/dev/null 2>&1; then
@@ -42,12 +42,12 @@ run() {
   echo "✓ $file"
 }
 
-run "./scripts/install-branding.sh"
-run "./scripts/install-js8call.sh"
-run "./scripts/install-wine.sh"
-run "./scripts/install-wsjtx.sh"
-run "./scripts/install-js8spotter.sh"
-run "./scripts/pin-apps.sh"
+run "./install-branding.sh"
+run "./install-js8call.sh"
+run "./install-wine.sh"
+run "./install-wsjtx.sh"
+run "./install-js8spotter.sh"
+run "./pin-apps.sh"
 
 # show post-install notes if present
 [ -f "scripts/post-install-steps.txt" ] && cp -f "scripts/post-install-steps.txt" "$HOME/Desktop/" 2>/dev/null || true
