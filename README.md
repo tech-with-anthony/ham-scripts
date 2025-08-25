@@ -1,4 +1,4 @@
-Ham-Scripts
+# Ham-Scripts
 
 A collection of user-level installer scripts for common ham-radio apps on Linux (Ubuntu/Debian family). The goal is: download → run → get on the air, with sensible desktop integration (app icons, .desktop entries, and GNOME taskbar pinning).
 
@@ -6,39 +6,47 @@ If you hit a snag, please open an Issue describing your distro/version, desktop 
 
 Supported & tested
 
-Ubuntu 22.04/24.04 (GNOME Shell)
+Ubuntu 24.04 (GNOME Shell)
 
 Debian 12 (GNOME recommended)
+
+# Prerequisites
 
 Before you install anything (manual prerequisites)
 
 Run these once on a fresh system to avoid most “missing package” errors.
-```
-# 1) Base tools
-sudo apt update
+
+1) Base tools
+```sudo apt update
 sudo apt install -y curl git wget unzip desktop-file-utils xdg-utils jq
+```
 
-# 2) GNOME settings tooling (for pinning / wallpaper; safe to install on Ubuntu GNOME)
+2) GNOME settings tooling (for pinning / wallpaper; safe to install on Ubuntu GNOME)
+```
 sudo apt install -y gsettings-desktop-schemas
+```
 
-# 3) Deb installer helpers (lets apt resolve .deb dependencies cleanly)
+3) Deb installer helpers (lets apt resolve .deb dependencies cleanly)
+```
 sudo apt install -y gdebi-core
-
-# 4) JS8CALL itself (required by JS8Spotter) – install from official site or your package source
-#   See: http://files.js8call.com/latest.html (binary downloads) :contentReference[oaicite:1]{index=1}
-
-# 5) JS8Spotter’s Linux Python deps (Tk & Pillow’s ImageTk)
+```
+4) JS8Spotter’s Linux Python deps (Tk & Pillow’s ImageTk)
+```
 sudo apt install -y python3 python3-tk python3-pil python3-pil.imagetk sqlite3
 ```
-Why #5? Per the JS8Spotter manual, Linux users need Python 3 with Tkinter + Pillow ImageTk to run the program; JS8Spotter talks to a running JS8Call instance over TCP and isn’t a standalone modem. 
+Why #4? Per the JS8Spotter manual, Linux users need Python 3 with Tkinter + Pillow ImageTk to run the program; JS8Spotter talks to a running JS8Call instance over TCP and isn’t a standalone modem. 
 [kf7mix.com](https://kf7mix.com/files/js8spotter/JS8Spotter_Manual_v0.7.pdf?utm_source=chatgpt.com)
 
-Installation
+# Installation
 
 To install:
+
 -Go to releases
+
 -Select the latest release
+
 -copy the ```tar.gz``` file url
+
 -In a Linux terminal run 
 ```
 wget (copied url)
@@ -52,7 +60,7 @@ cd ham-scripts/scripts
 ./install.sh
 ``` 
 
-Contributing
+# Contributing
 
 PRs are welcome—add new installers, improve detection, or extend desktop integration. Please keep scripts:
 
