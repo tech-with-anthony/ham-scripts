@@ -1,94 +1,60 @@
 #!/usr/bin/env bash
 #
 # Author  : Anthony Woodward
-# Date    : 23 February 2025
-# Updated : 23 February 2025
+# Date    : 25 August 2025
+# Updated : 25 August 2025
 # Purpose : Install JS8Spotter
+set -euo pipefail
+. "$(dirname "$0")/env.sh"
 
+APP_NAME="js8spotter"
 
-# Variables
-WORK_DIR="$INSTALL_DIR/js8spotter-114b"
-DESKTOP_FILE="$INSTALL_DIR/Desktop/JS8Spotter.desktop"
-JS8_URL="https://kf7mix.com/files/js8spotter/js8spotter-114b.zip"
-ZIP_FILE="$INSTALL_DIR/js8spotter-114b.zip"
+# Change this later as needed (accepts "1.17" style and converts to 117)
+VERSION="${JS8SPOTTER_VERSION:-1.17}"
+VER_NODOT="${VERSION//./}"
+BASE_URL="${JS8SPOTTER_BASE_URL:-https://kf7mix.com/files/js8spotter}"
+FILE="${JS8SPOTTER_FILE:-js8spotter-${VER_NODOT}.zip}"
+URL="${JS8SPOTTER_URL:-$BASE_URL/$FILE}"
 
-# Ensure required directories exist
-echo "Ensuring directories exist..."
-mkdir -p "$INSTALL_DIR/Desktop" || { echo "Failed to create desktop directory. Exiting."; exit 1; }
-mkdir -p "$WORK_DIR" || { echo "Failed to create working directory. Exiting."; exit 1; }
+req curl
+req unzip
 
-# Update package list
-echo "Updating package list..."
-if ! sudo apt-get update; then
-    echo "Failed to update package list. Exiting."
-    exit 1
+TMPDIR="$(mktemp -d)"
+trap 'rm -rf "$TMPDIR"' EXIT
+
+echo "Downloading JS8Spotter $VERSION..."
+curl -fL "$URL" -o "$TMPDIR/$FILE"
+
+echo "Extracting..."
+unzip -q "$TMPDIR/$FILE" -d "$TMPDIR/extracted"
+
+# Prefer an AppImage; otherwise take a plausible executable
+BIN_CANDIDATE="$(find "$TMPDIR/extracted" -type f \( -name '*.AppImage' -o -name "$APP_NAME" -o -name "$APP_NAME.sh" -o -name 'JS8Spotter*' \) | head -n1 || true)"
+if [ -z "${BIN_CANDIDATE:-}" ]; then
+  echo "Could not find an AppImage or executable inside the ZIP. Contents were:" >&2
+  find "$TMPDIR/extracted" -maxdepth 2 -type f -printf '  %P\n' >&2
+  exit 1
 fi
 
-# Install dependencies
-echo "Installing required dependencies..."
-if ! sudo apt install -y python3-tk python3-pil python3-pil.imagetk python3-requests python3-tksnack unzip wget; then
-    echo "Failed to install dependencies. Exiting."
-    exit 1
+install -Dm755 "$BIN_CANDIDATE" "$BIN_DIR/$APP_NAME"
+
+# Try to find an icon inside the archive (best-effort)
+ICON_SRC="$(find "$TMPDIR/extracted" -type f -iname '*js8spotter*.png' -o -iname 'icon*.png' | head -n1 || true)"
+if [ -n "${ICON_SRC:-}" ]; then
+  install -Dm644 "$ICON_SRC" "$ICON_DIR/${APP_NAME}.png"
 fi
 
-# Download JS8Spotter
-echo "Downloading JS8Spotter package..."
-if ! wget -q -O "$ZIP_FILE" "$JS8_URL"; then
-    echo "Failed to download JS8Spotter package. Exiting."
-    exit 1
-fi
-
-# Extract the package
-echo "Extracting JS8Spotter package..."
-if ! unzip -o "$ZIP_FILE" -d "$INSTALL_DIR"; then
-    echo "Failed to extract JS8Spotter package. Exiting."
-    rm "$ZIP_FILE"
-    exit 1
-fi
-#rm "$ZIP_FILE"
-
-# Create desktop shortcut
-echo "Creating desktop shortcut..."
-cat <<EOF > "$DESKTOP_FILE"
+# Desktop entry (user-level)
+cat > "$DESKTOP_DIR/${APP_NAME}.desktop" <<EOF
 [Desktop Entry]
-Version=1.0
-Name=JS8Spotter
-Comment=JS8Spotter Application
-Exec=python3 $HOME/js8spotter-114b/js8spotter.py
-Icon=$HOME/js8spotter-114b/js8spotter.ico
-Path=$HOME/js8spotter-114b
-Terminal=false
 Type=Application
+Name=JS8Spotter
+Exec=$BIN_DIR/$APP_NAME
+Icon=${ICON_DIR}/${APP_NAME}.png
+Categories=Network;HamRadio;
+Terminal=false
 EOF
 
-# Set permissions
-echo "Setting permissions..."
-chmod +x "$WORK_DIR/js8spotter.py"
-chmod +x "$DESKTOP_FILE"
+have update-desktop-database && update-desktop-database >/dev/null 2>&1 || true
 
-# Allow launching if gio is available
-if command -v gio &>/dev/null; then
-    echo "Allowing launching for desktop shortcut..."
-    gio set "$DESKTOP_FILE" metadata::trusted true
-else
-    echo "gio command not found. Skipping 'Allow Launching' setup."
-fi
-
-# Adjust permissions for /etc/skel during Cubic install
-if [ "$INSTALL_DIR" = "/etc/skel" ]; then
-    echo "Adjusting permissions for Cubic environment..."
-    chown -R root:root "$WORK_DIR"
-    chmod -R 755 "$WORK_DIR"
-    chown root:root "$DESKTOP_FILE"
-    chmod 755 "$DESKTOP_FILE"
-fi
-
-# Verify installation
-if [ -f "$WORK_DIR/js8spotter.py" ]; then
-    echo "JS8Spotter installed successfully in $INSTALL_DIR."
-else
-    echo "JS8Spotter installation failed. Please check for errors."
-    exit 1
-fi
-
-echo "Installation complete! You can launch JS8Spotter from the desktop shortcut."
+echo "✓ JS8Spotter $VERSION installed to $BIN_DIR/$APP_NAME"
