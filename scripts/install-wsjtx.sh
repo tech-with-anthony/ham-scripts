@@ -10,8 +10,8 @@ set -euo pipefail
 APP="wsjtx"
 PRETTY="WSJT-X"
 
-# Fixed .deb URL (2.7.0 amd64)
-URL="${WSJTX_URL:-https://sourceforge.net/projects/wsjt/files/wsjtx-2.7.0/wsjtx_2.7.0_amd64.deb/download}"
+# Fixed download URL (WSJT-X 2.7.0 amd64 .deb)
+URL="https://sourceforge.net/projects/wsjt/files/wsjtx-2.7.0/wsjtx_2.7.0_amd64.deb/download"
 
 req curl ar tar
 
@@ -19,8 +19,10 @@ req curl ar tar
 pin_app_taskbar() {
   local app="$1" pretty="$2" icon_base="${3:-$1}"
   local desktop="$DESKTOP_DIR/${app}.desktop"
-  local icon_src icon_dst="$ICON_DIR/${app}.png"
+  local icon_dst="$ICON_DIR/${app}.png"
 
+  # Use repo icon
+  local icon_src
   icon_src="$(find_repo_icon "$icon_base" || true)"
   if [ -n "${icon_src:-}" ]; then
     install -Dm644 "$icon_src" "$icon_dst"
@@ -28,11 +30,13 @@ pin_app_taskbar() {
     echo "warn: no repo icon found for ${icon_base}"
   fi
 
+  # locate executable
   local exe
   exe="$(command -v "$app" 2>/dev/null || true)"
   [ -z "$exe" ] && [ -x "$BIN_DIR/$app" ] && exe="$BIN_DIR/$app"
   [ -z "$exe" ] && exe="$app"
 
+  # create/update .desktop
   if [ -f "$desktop" ]; then
     sed -i "s|^Exec=.*$|Exec=${exe}|g" "$desktop"
     if grep -q "^Icon=" "$desktop"; then
@@ -52,6 +56,7 @@ Terminal=false
 EOF
   fi
 
+  # pin to favorites (GNOME/Cinnamon only)
   local desk="${XDG_CURRENT_DESKTOP:-${DESKTOP_SESSION:-}}"
   local dlc schema key appid="${app}.desktop"
   dlc="$(printf '%s' "$desk" | tr '[:upper:]' '[:lower:]')"
@@ -69,6 +74,7 @@ EOF
       gsettings set "$schema" "$key" "[$([ -n "$new" ] && echo "$new, ")'${appid}']"
   fi
 
+  # refresh caches
   command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DESKTOP_DIR" >/dev/null 2>&1 || true
   command -v gtk-update-icon-cache  >/dev/null 2>&1 && gtk-update-icon-cache -f "$(dirname "$(dirname "$ICON_DIR")")" >/dev/null 2>&1 || true
 }
@@ -77,7 +83,7 @@ EOF
 TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR"' EXIT
 
-echo "Downloading ${PRETTY} package…"
+echo "Downloading ${PRETTY} 2.7.0…"
 curl -fL "$URL" -o "$TMPDIR/wsjtx.deb"
 
 ( cd "$TMPDIR" && ar x wsjtx.deb )
@@ -98,10 +104,7 @@ esac
 [ -x "$TMPDIR/usr/bin/wsjtx" ] || { echo "wsjtx binary missing in package"; exit 1; }
 install -Dm755 "$TMPDIR/usr/bin/wsjtx" "$BIN_DIR/wsjtx"
 
-# if .deb shipped an icon, keep it
-if [ -f "$TMPDIR/usr/share/icons/hicolor/256x256/apps/wsjtx.png" ]; then
-  install -Dm644 "$TMPDIR/usr/share/icons/hicolor/256x256/apps/wsjtx.png" "$ICON_DIR/wsjtx.png"
-fi
-
+# use repo icon explicitly (will overwrite)
 pin_app_taskbar "$APP" "$PRETTY" "$APP"
-echo "✓ ${PRETTY} installed at $BIN_DIR/wsjtx"
+
+echo "✓ ${PRETTY} 2.7.0 installed at $BIN_DIR/wsjtx"
