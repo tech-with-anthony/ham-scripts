@@ -31,6 +31,32 @@ ICON_PATH="${ICON_DIR}/${APP_ID}.png"
 # Expected executable after installation (from the .deb)
 APP_EXEC="/usr/bin/wsjtx"
 
+### ====== Install dependencies ==========================================================
+sudo apt install \
+  libqt5serialport5 \
+  libqt5multimedia5-plugins \
+  libqt5widgets5 \
+  libqt5multimediawidgets5 \
+  libqt5core5a \
+  libqt5gui5 \
+  libqt5multimedia5 \
+  libqt5network5 \
+  libqt5printsupport5 \
+  libqt5serialport5 \
+  libqt5widgets5 \
+  libdouble-conversion3 \
+  libpcre2-16-0 \
+  qttranslations5-l10n \
+  libmd4c0 \
+  libqt5dbus5 \
+  libxcb-xinerama0 \
+  libxcb-xinput0 \
+  libqt5svg5 \
+  qt5-gtk-platformtheme \
+  libqt5multimediagsttools5 \
+  libgfortran5 \
+  -y
+
 ### ====== UTIL FUNCTIONS ================================================================
 have() { command -v "$1" >/dev/null 2>&1; }
 
