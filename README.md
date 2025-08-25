@@ -53,7 +53,7 @@ wget (copied url)
 ```
 -enter
 ```
-tar -xzf ham-scripts.tar.gz
+tar -xzf ham-scripts-(version number).tar.gz
 ```
 -enter
 ```
