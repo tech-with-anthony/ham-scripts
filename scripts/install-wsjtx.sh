@@ -14,18 +14,23 @@ UA="${WSJTX_UA:-Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Safari/537.36
 
 req curl ar tar
 
-# ---------- pin helper ----------
+# ---------- helper: ensure icon + desktop + pin ----------
 pin_app_taskbar() {
   local app="$1" pretty="$2" icon_base="${3:-$1}"
   local desktop="$DESKTOP_DIR/${app}.desktop"
-  local icon_src="$REPO_ROOT/app-icons/${icon_base}.png"
-  local icon_dst="$ICON_DIR/${app}.png"
+  local icon_src icon_dst="$ICON_DIR/${app}.png"
+
+  icon_src="$(find_repo_icon "$icon_base" || true)"
+  if [ -n "${icon_src:-}" ]; then
+    install -Dm644 "$icon_src" "$icon_dst"
+  else
+    echo "warn: no repo icon found for ${icon_base}"
+  fi
+
   local exe
   exe="$(command -v "$app" 2>/dev/null || true)"
   [ -z "$exe" ] && [ -x "$BIN_DIR/$app" ] && exe="$BIN_DIR/$app"
   [ -z "$exe" ] && exe="$app"
-
-  [ -f "$icon_src" ] && install -Dm644 "$icon_src" "$icon_dst"
 
   if [ -f "$desktop" ]; then
     sed -i "s|^Exec=.*$|Exec=${exe}|g" "$desktop"
@@ -47,8 +52,8 @@ EOF
   fi
 
   local desk="${XDG_CURRENT_DESKTOP:-${DESKTOP_SESSION:-}}"
-  local dlc; dlc="$(printf '%s' "$desk" | tr '[:upper:]' '[:lower:]')"
-  local schema key appid="${app}.desktop"
+  local dlc schema key appid="${app}.desktop"
+  dlc="$(printf '%s' "$desk" | tr '[:upper:]' '[:lower:]')"
   if echo "$dlc" | grep -q gnome; then schema="org.gnome.shell"; key="favorite-apps"
   elif echo "$dlc" | grep -q cinnamon; then schema="org.cinnamon"; key="favorite-apps"
   else
@@ -68,7 +73,6 @@ EOF
 }
 
 resolve_latest_url() {
-  # user can pin WSJTX_URL explicitly
   [ -n "${WSJTX_URL:-}" ] && { echo "$WSJTX_URL"; return 0; }
 
   echo "Discovering latest WSJT-X version from SourceForge…"
@@ -112,12 +116,10 @@ esac
 [ -x "$TMPDIR/usr/bin/wsjtx" ] || { echo "wsjtx binary missing in package"; exit 1; }
 install -Dm755 "$TMPDIR/usr/bin/wsjtx" "$BIN_DIR/wsjtx"
 
-# icon (if present in .deb; our pin helper will also install repo icon)
+# (optional) if .deb contains an icon, keep it too
 if [ -f "$TMPDIR/usr/share/icons/hicolor/256x256/apps/wsjtx.png" ]; then
   install -Dm644 "$TMPDIR/usr/share/icons/hicolor/256x256/apps/wsjtx.png" "$ICON_DIR/wsjtx.png"
 fi
 
-# desktop entry + pin
 pin_app_taskbar "$APP" "$PRETTY" "$APP"
-
 echo "✓ ${PRETTY} installed at $BIN_DIR/wsjtx"

@@ -32,6 +32,36 @@ warn() { printf "\033[1;33m%s\033[0m\n" "$*" >&2; }
 err()  { printf "\033[1;31m%s\033[0m\n" "$*" >&2; }
 die()  { err "$@"; exit 1; }
 
+# find an icon PNG in the repo for a given app id (e.g., "wsjtx")
+# echoes absolute path if found, empty otherwise
+find_repo_icon() {
+  local app="$1"
+  local base="$REPO_ROOT"
+  # candidate folders (add/remove as needed)
+  local -a dirs=("$base/app-icons" "$base/logo" "$base/icons")
+  # candidate filenames (case/format variants)
+  local -a names=(
+    "${app}.png" "${app}.PNG"                               # exact
+    "$(echo "$app" | tr '[:lower:]' '[:upper:]').png"       # UPPER
+    "$(echo "$app" | tr '[:upper:]' '[:lower:]').png"       # lower
+    "${app}-icon.png" "${app}_icon.png"                     # suffix
+    "JS8Call.png" "WSJTX.png" "JS8Spotter.png"              # common titles
+    "ham-scripts_${app}.png"                                # prefixed
+  )
+  local d n
+  for d in "${dirs[@]}"; do
+    for n in "${names[@]}"; do
+      if [ -f "$d/$n" ]; then
+        printf '%s\n' "$d/$n"
+        return 0
+      fi
+    done
+  done
+  # final fallback: project logo if present
+  [ -f "$base/logo/ham-scripts_logo.png" ] && printf '%s\n' "$base/logo/ham-scripts_logo.png" || printf ''
+}
+
+
 # require a command to exist, otherwise instruct user to install it once
 req() {
   local c

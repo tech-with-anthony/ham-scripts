@@ -10,7 +10,7 @@ set -euo pipefail
 APP="js8spotter"
 PRETTY="JS8Spotter"
 
-# Accepts "1.17" and converts to 117 for ZIP name
+# Accepts "1.17" and converts to 117 for ZIP filename
 VERSION="${JS8SPOTTER_VERSION:-1.17}"
 VER_NODOT="${VERSION//./}"
 BASE_URL="${JS8SPOTTER_BASE_URL:-https://kf7mix.com/files/js8spotter}"
@@ -19,18 +19,23 @@ URL="${JS8SPOTTER_URL:-$BASE_URL/$FILE}"
 
 req curl unzip
 
-# ---------- pin helper ----------
+# ---------- helper: ensure icon + desktop + pin ----------
 pin_app_taskbar() {
   local app="$1" pretty="$2" icon_base="${3:-$1}"
   local desktop="$DESKTOP_DIR/${app}.desktop"
-  local icon_src="$REPO_ROOT/app-icons/${icon_base}.png"
-  local icon_dst="$ICON_DIR/${app}.png"
+  local icon_src icon_dst="$ICON_DIR/${app}.png"
+
+  icon_src="$(find_repo_icon "$icon_base" || true)"
+  if [ -n "${icon_src:-}" ]; then
+    install -Dm644 "$icon_src" "$icon_dst"
+  else
+    echo "warn: no repo icon found for ${icon_base}"
+  fi
+
   local exe
   exe="$(command -v "$app" 2>/dev/null || true)"
   [ -z "$exe" ] && [ -x "$BIN_DIR/$app" ] && exe="$BIN_DIR/$app"
   [ -z "$exe" ] && exe="$app"
-
-  [ -f "$icon_src" ] && install -Dm644 "$icon_src" "$icon_dst"
 
   if [ -f "$desktop" ]; then
     sed -i "s|^Exec=.*$|Exec=${exe}|g" "$desktop"
@@ -52,8 +57,8 @@ EOF
   fi
 
   local desk="${XDG_CURRENT_DESKTOP:-${DESKTOP_SESSION:-}}"
-  local dlc; dlc="$(printf '%s' "$desk" | tr '[:upper:]' '[:lower:]')"
-  local schema key appid="${app}.desktop"
+  local dlc schema key appid="${app}.desktop"
+  dlc="$(printf '%s' "$desk" | tr '[:upper:]' '[:lower:]')"
   if echo "$dlc" | grep -q gnome; then schema="org.gnome.shell"; key="favorite-apps"
   elif echo "$dlc" | grep -q cinnamon; then schema="org.cinnamon"; key="favorite-apps"
   else
@@ -85,7 +90,5 @@ CAND="$(find "$TMPDIR/extracted" -type f \( -name '*.AppImage' -o -name "$APP" -
 
 install -Dm755 "$CAND" "$BIN_DIR/$APP"
 
-# desktop entry + pin
 pin_app_taskbar "$APP" "$PRETTY" "$APP"
-
 echo "✓ ${PRETTY} installed at $BIN_DIR/$APP"

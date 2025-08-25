@@ -15,19 +15,27 @@ URL="${JS8CALL_URL:-http://files.js8call.com/${VERSION}/${FILE}}"
 
 req curl
 
-# ---------- pin helper ----------
+# ---------- helper: ensure icon + desktop + pin ----------
 pin_app_taskbar() {
   local app="$1" pretty="$2" icon_base="${3:-$1}"
   local desktop="$DESKTOP_DIR/${app}.desktop"
-  local icon_src="$REPO_ROOT/app-icons/${icon_base}.png"
-  local icon_dst="$ICON_DIR/${app}.png"
+  local icon_src icon_dst="$ICON_DIR/${app}.png"
+
+  # install icon from repo (via helper)
+  icon_src="$(find_repo_icon "$icon_base" || true)"
+  if [ -n "${icon_src:-}" ]; then
+    install -Dm644 "$icon_src" "$icon_dst"
+  else
+    echo "warn: no repo icon found for ${icon_base}"
+  fi
+
+  # locate executable
   local exe
   exe="$(command -v "$app" 2>/dev/null || true)"
   [ -z "$exe" ] && [ -x "$BIN_DIR/$app" ] && exe="$BIN_DIR/$app"
   [ -z "$exe" ] && exe="$app"
 
-  [ -f "$icon_src" ] && install -Dm644 "$icon_src" "$icon_dst"
-
+  # create/update .desktop (absolute Icon path)
   if [ -f "$desktop" ]; then
     sed -i "s|^Exec=.*$|Exec=${exe}|g" "$desktop"
     if grep -q "^Icon=" "$desktop"; then
@@ -47,9 +55,10 @@ Terminal=false
 EOF
   fi
 
+  # pin to favorites
   local desk="${XDG_CURRENT_DESKTOP:-${DESKTOP_SESSION:-}}"
-  local dlc; dlc="$(printf '%s' "$desk" | tr '[:upper:]' '[:lower:]')"
-  local schema key appid="${app}.desktop"
+  local dlc schema key appid="${app}.desktop"
+  dlc="$(printf '%s' "$desk" | tr '[:upper:]' '[:lower:]')"
   if echo "$dlc" | grep -q gnome; then schema="org.gnome.shell"; key="favorite-apps"
   elif echo "$dlc" | grep -q cinnamon; then schema="org.cinnamon"; key="favorite-apps"
   else
@@ -76,14 +85,12 @@ if [ ! -f "$OUT" ]; then
   chmod +x "$OUT"
 fi
 
-# optional icon extraction (best-effort)
+# optional: extract icon from AppImage (best-effort)
 if "$OUT" --appimage-extract >/dev/null 2>&1; then
   ICON_SRC="squashfs-root/usr/share/icons/hicolor/256x256/apps/${APP}.png"
   [ -f "$ICON_SRC" ] && install -Dm644 "$ICON_SRC" "$ICON_DIR/${APP}.png"
   rm -rf squashfs-root
 fi
 
-# desktop entry (ensured by pin)
 pin_app_taskbar "$APP" "$PRETTY" "$APP"
-
 echo "✓ ${PRETTY} installed at $OUT"
