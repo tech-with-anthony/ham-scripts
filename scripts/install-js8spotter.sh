@@ -5,90 +5,226 @@
 # Updated : 25 August 2025
 # Purpose : Install JS8Spotter
 set -euo pipefail
-. "$(dirname "$0")/env.sh"
 
-APP="js8spotter"
-PRETTY="JS8Spotter"
+### ====== USER-TUNABLE SETTINGS (update these for new versions) ==========================
+APP_NAME="JS8Spotter"
+APP_ID="js8spotter"
 
-# Accepts "1.17" and converts to 117 for ZIP filename
-VERSION="${JS8SPOTTER_VERSION:-1.14b}"
-VER_NODOT="${VERSION//./}"
-BASE_URL="${JS8SPOTTER_BASE_URL:-https://kf7mix.com/files/js8spotter}"
-FILE="${JS8SPOTTER_FILE:-js8spotter-${VER_NODOT}.zip}"
-URL="${JS8SPOTTER_URL:-$BASE_URL/$FILE}"
+# Version + ZIP download URL (update these for new releases)
+VERSION="1.14b"
+ZIP_URL="https://kf7mix.com/files/js8spotter/js8spotter-${VERSION}.zip"
 
-req curl unzip
+# Custom icon (PNG) from your repo — update path/branch if you move it
+ICON_URL="https://raw.githubusercontent.com/thetechnicalham/ham-scripts/main/app-icons/js8spotter.png"
 
-# ---------- helper: ensure icon + desktop + pin ----------
-pin_app_taskbar() {
-  local app="$1" pretty="$2" icon_base="${3:-$1}"
-  local desktop="$DESKTOP_DIR/${app}.desktop"
-  local icon_src icon_dst="$ICON_DIR/${app}.png"
+### ====== LOCATIONS (usually leave alone) ===============================================
+WORKDIR="${TMPDIR:-/tmp}/install-${APP_ID}"
+ZIP_PATH="${WORKDIR}/${APP_ID}-${VERSION}.zip"
+EXTRACT_DIR="${WORKDIR}/extracted"
 
-  icon_src="$(find_repo_icon "$icon_base" || true)"
-  if [ -n "${icon_src:-}" ]; then
-    install -Dm644 "$icon_src" "$icon_dst"
-  else
-    echo "warn: no repo icon found for ${icon_base}"
-  fi
+INSTALL_DIR="/opt/${APP_ID}-${VERSION}"      # versioned install dir
+SYMLINK_BIN="/usr/local/bin/${APP_ID}"       # stable command for Exec= and PATH
+DESKTOP_DIR="${HOME}/.local/share/applications"
+DESKTOP_FILE="${DESKTOP_DIR}/${APP_ID}.desktop"
+ICON_DIR="${HOME}/.local/share/icons"
+ICON_PATH="${ICON_DIR}/${APP_ID}.png"
 
-  local exe
-  exe="$(command -v "$app" 2>/dev/null || true)"
-  [ -z "$exe" ] && [ -x "$BIN_DIR/$app" ] && exe="$BIN_DIR/$app"
-  [ -z "$exe" ] && exe="$app"
+### ====== UTILITIES =====================================================================
+have() { command -v "$1" >/dev/null 2>&1; }
 
-  if [ -f "$desktop" ]; then
-    sed -i "s|^Exec=.*$|Exec=${exe}|g" "$desktop"
-    if grep -q "^Icon=" "$desktop"; then
-      sed -i "s|^Icon=.*$|Icon=${icon_dst}|g" "$desktop"
-    else
-      printf '\nIcon=%s\n' "$icon_dst" >> "$desktop"
-    fi
-  else
-    cat >"$desktop" <<EOF
-[Desktop Entry]
-Type=Application
-Name=${pretty}
-Exec=${exe}
-Icon=${icon_dst}
-Categories=Network;HamRadio;
-Terminal=false
-EOF
-  fi
-
-  local desk="${XDG_CURRENT_DESKTOP:-${DESKTOP_SESSION:-}}"
-  local dlc schema key appid="${app}.desktop"
-  dlc="$(printf '%s' "$desk" | tr '[:upper:]' '[:lower:]')"
-  if echo "$dlc" | grep -q gnome; then schema="org.gnome.shell"; key="favorite-apps"
-  elif echo "$dlc" | grep -q cinnamon; then schema="org.cinnamon"; key="favorite-apps"
-  else
-    echo "info: unsupported desktop '$desk'; created $desktop"
-    return 0
-  fi
-  if command -v gsettings >/dev/null 2>&1 && gsettings list-schemas | grep -q "^$schema$"; then
-    local cur new
-    cur="$(gsettings get "$schema" "$key")"
-    new="$(printf '%s' "$cur" | sed -E 's/^\[|\]$//g')"
-    echo "$new" | grep -q "'$appid'" || \
-      gsettings set "$schema" "$key" "[$([ -n "$new" ] && echo "$new, ")'${appid}']"
-  fi
-
-  command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DESKTOP_DIR" >/dev/null 2>&1 || true
-  command -v gtk-update-icon-cache  >/dev/null 2>&1 && gtk-update-icon-cache -f "$(dirname "$(dirname "$ICON_DIR")")" >/dev/null 2>&1 || true
+install_pkgs() {
+  sudo apt-get update -y
+  sudo apt-get install -y curl wget ca-certificates unzip libglib2.0-bin
 }
 
-# ---------- install ----------
-TMPDIR="$(mktemp -d)"
-trap 'rm -rf "$TMPDIR"' EXIT
+download_file() {
+  local url="$1" out="$2"
+  mkdir -p "$(dirname "$out")"
+  echo "Downloading: $url"
+  if have wget; then
+    wget -O "$out" --content-disposition --no-verbose "$url"
+  else
+    curl -L -o "$out" "$url"
+  fi
+}
 
-echo "Downloading ${PRETTY} ${VERSION}…"
-curl -fL "$URL" -o "$TMPDIR/$FILE"
-unzip -q "$TMPDIR/$FILE" -d "$TMPDIR/extracted"
+create_icon() {
+  mkdir -p "$ICON_DIR"
+  echo "Placing icon at: $ICON_PATH"
+  download_file "$ICON_URL" "$ICON_PATH"
+}
 
-CAND="$(find "$TMPDIR/extracted" -type f \( -name '*.AppImage' -o -name "$APP" -o -name "$APP.sh" -o -iname 'JS8Spotter*' \) | head -n1 || true)"
-[ -n "$CAND" ] || { echo "No executable found in archive"; exit 1; }
+detect_main_executable() {
+  # Heuristics to find the thing to run inside $INSTALL_DIR
+  # Order: AppImage > native executable/script > Python script
+  local candidate
 
-install -Dm755 "$CAND" "$BIN_DIR/$APP"
+  # 1) AppImage
+  candidate="$(find "$INSTALL_DIR" -type f -iname '*js8spotter*.AppImage' -print -quit || true)"
+  if [ -n "${candidate:-}" ]; then
+    echo "$candidate"
+    return 0
+  fi
 
-pin_app_taskbar "$APP" "$PRETTY" "$APP"
-echo "✓ ${PRETTY} installed at $BIN_DIR/$APP"
+  # 2) Executable files with a relevant name
+  candidate="$(find "$INSTALL_DIR" -type f -iname '*js8spotter*' -perm -u+x -print -quit || true)"
+  if [ -n "${candidate:-}" ]; then
+    echo "$candidate"
+    return 0
+  fi
+
+  # 3) Shell launchers
+  candidate="$(find "$INSTALL_DIR" -type f \( -iname '*.sh' -o -iname '*run*' \) -perm -u+x -print | grep -i js8spotter | head -n1 || true)"
+  if [ -n "${candidate:-}" ]; then
+    echo "$candidate"
+    return 0
+  fi
+
+  # 4) Python script fallback
+  candidate="$(find "$INSTALL_DIR" -type f -iname '*js8spotter*.py' -print -quit || true)"
+  if [ -n "${candidate:-}" ]; then
+    echo "python3::${candidate}"
+    return 0
+  fi
+
+  # 5) Last resort: any AppImage / any executable file
+  candidate="$(find "$INSTALL_DIR" -type f -iname '*.AppImage' -print -quit || true)"
+  if [ -n "${candidate:-}" ]; then
+    echo "$candidate"
+    return 0
+  fi
+  candidate="$(find "$INSTALL_DIR" -type f -perm -u+x -print -quit || true)"
+  if [ -n "${candidate:-}" ]; then
+    echo "$candidate"
+    return 0
+  fi
+
+  echo ""
+  return 1
+}
+
+create_wrapper() {
+  local target="$1"
+  sudo tee "$SYMLINK_BIN" >/dev/null <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+APPDIR="${INSTALL_DIR}"
+cd "\$APPDIR"
+
+TARGET="$target"
+
+if [[ "\$TARGET" == python3::* ]]; then
+  exec python3 "\${TARGET#python3::}" "\$@"
+else
+  # Ensure executable bit (especially for AppImages or shipped binaries)
+  chmod +x "\$TARGET" || true
+  exec "\$TARGET" "\$@"
+fi
+EOF
+  sudo chmod +x "$SYMLINK_BIN"
+  echo "Created launcher wrapper: $SYMLINK_BIN"
+}
+
+create_desktop_file() {
+  mkdir -p "$DESKTOP_DIR"
+  cat > "$DESKTOP_FILE" <<EOF
+[Desktop Entry]
+Name=${APP_NAME}
+GenericName=${APP_NAME}
+Comment=JS8Call companion spotting utility
+Exec=${SYMLINK_BIN}
+Icon=${ICON_PATH}
+Terminal=false
+Type=Application
+Categories=HamRadio;Network;Utility;
+StartupNotify=true
+EOF
+  echo "Created launcher: $DESKTOP_FILE"
+  update-desktop-database >/dev/null 2>&1 || true
+}
+
+pin_to_taskbar() {
+  if ! have gsettings; then
+    echo "gsettings not found; cannot pin to GNOME taskbar automatically."
+    return 0
+  fi
+  local key="org.gnome.shell favorite-apps"
+  local current
+  current="$(gsettings get ${key})" || current="[]"
+
+  local new_list
+  new_list="$(python3 - "$current" "$(basename "$DESKTOP_FILE")" <<'PY'
+import ast, sys
+arr_str = sys.argv[1]
+target = sys.argv[2]
+try:
+    arr = ast.literal_eval(arr_str)
+    if not isinstance(arr, list):
+        arr = []
+except Exception:
+    arr = []
+if target not in arr:
+    arr.append(target)
+print(str(arr).replace("'", '"'))
+PY
+)"
+  echo "Setting GNOME favorites to include: $(basename "$DESKTOP_FILE")"
+  gsettings set ${key} "${new_list}"
+}
+
+### ====== MAIN ==========================================================================
+
+# 1) Tools
+install_pkgs
+
+# 2) Download ZIP
+mkdir -p "$WORKDIR"
+download_file "$ZIP_URL" "$ZIP_PATH"
+
+# 3) Extract
+rm -rf "$EXTRACT_DIR"
+mkdir -p "$EXTRACT_DIR"
+unzip -q "$ZIP_PATH" -d "$EXTRACT_DIR"
+
+# 4) Move to /opt/<app>-<version>
+sudo rm -rf "$INSTALL_DIR"
+# If the ZIP contains a single top-level dir, move that; else move all contents
+if [ "$(find "$EXTRACT_DIR" -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1 ]; then
+  top="$(find "$EXTRACT_DIR" -mindepth 1 -maxdepth 1 -type d)"
+  sudo mv "$top" "$INSTALL_DIR"
+else
+  sudo mkdir -p "$INSTALL_DIR"
+  sudo mv "$EXTRACT_DIR"/* "$INSTALL_DIR"/
+fi
+
+# 5) Detect main executable and create wrapper
+main_exec="$(detect_main_executable || true)"
+if [ -z "${main_exec:-}" ]; then
+  echo "WARNING: Could not detect the main executable automatically in: $INSTALL_DIR"
+  echo "You can edit the wrapper at: $SYMLINK_BIN after we create it with a placeholder."
+  # create a placeholder wrapper that opens the install dir
+  sudo tee "$SYMLINK_BIN" >/dev/null <<EOF
+#!/usr/bin/env bash
+cd "${INSTALL_DIR}"
+echo "Could not auto-detect JS8Spotter executable. Please edit ${SYMLINK_BIN} to launch the correct file."
+ls -la
+EOF
+  sudo chmod +x "$SYMLINK_BIN"
+else
+  create_wrapper "$main_exec"
+fi
+
+# 6) Icon + desktop entry
+create_icon
+create_desktop_file
+
+# 7) Pin to taskbar
+pin_to_taskbar
+
+echo
+echo "✅ ${APP_NAME} ${VERSION} installed to ${INSTALL_DIR}"
+echo "   Command: ${SYMLINK_BIN}"
+echo "   Launcher: ${DESKTOP_FILE}"
+echo "   Icon: ${ICON_PATH}"
+echo "   If a different file should be launched, edit ${SYMLINK_BIN} to point at it."
+echo "   To update later, change VERSION and ZIP_URL at the top, then re-run this script."

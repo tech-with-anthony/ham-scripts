@@ -5,103 +5,148 @@
 # Updated : 25 August 2025
 # Purpose : User-level WSJT-X installer (auto-detect latest amd64 .deb from SourceForge)
 set -euo pipefail
-. "$(dirname "$0")/env.sh"
 
-APP="wsjtx"
-PRETTY="WSJT-X"
-VER="2.7.0"
-TGZ_URL="${WSJTX_TGZ_URL:-https://downloads.sourceforge.net/project/wsjt/wsjtx-${VER}/wsjtx-${VER}.tgz}"
+### ====== USER-TUNABLE SETTINGS (update these for new versions) ==========================
+APP_NAME="WSJT-X"
+APP_ID="wsjtx"                               # used for filenames: wsjtx.desktop, icon name, etc.
 
-req curl tar
+# VERSION + .deb download URL (change these for new releases)
+VERSION="2.7.0"
+DEB_URL="https://sourceforge.net/projects/wsjt/files/wsjtx-${VERSION}/wsjtx_${VERSION}_amd64.deb"
 
-PREFIX_OPT="$PREFIX/opt"
-APPDIR="$PREFIX_OPT/wsjtx-$VER"          # ~/.local/opt/wsjtx-2.7.0
-BINDST="$BIN_DIR/$APP"                   # ~/.local/bin/wsjtx
+# Custom icon (PNG) — update URL or branch/path if you move it
+ICON_URL="https://raw.githubusercontent.com/thetechnicalham/ham-scripts/main/app-icons/wsjtx.png"
 
-# --- helper from env.sh expected: find_repo_icon ---
-pin_app_taskbar() {
-  local app="$1" pretty="$2" icon_base="${3:-$1}"
-  local desktop="$DESKTOP_DIR/${app}.desktop"
-  local icon_src icon_dst="$ICON_DIR/${app}.png"
+### ====== LOCATIONS (rarely change) =====================================================
+WORKDIR="${TMPDIR:-/tmp}/install-${APP_ID}"
+DEB_PATH="${WORKDIR}/${APP_ID}_${VERSION}_amd64.deb"
 
-  icon_src="$(find_repo_icon "$icon_base" || true)"
-  [ -n "${icon_src:-}" ] && install -Dm644 "$icon_src" "$icon_dst" || echo "warn: no repo icon for $icon_base"
+# Put the desktop file & icon in the user's local directories so they're easy to override
+DESKTOP_DIR="${HOME}/.local/share/applications"
+DESKTOP_FILE="${DESKTOP_DIR}/${APP_ID}.desktop"
 
-  # Exec points to our wrapper/symlink in ~/.local/bin
-  local exe="$BINDST"
+ICON_DIR="${HOME}/.local/share/icons"
+ICON_PATH="${ICON_DIR}/${APP_ID}.png"
 
-  if [ -f "$desktop" ]; then
-    sed -i "s|^Exec=.*$|Exec=${exe}|g" "$desktop"
-    if grep -q "^Icon=" "$desktop"; then
-      sed -i "s|^Icon=.*$|Icon=${icon_dst}|g" "$desktop"
-    else
-      printf '\nIcon=%s\n' "$icon_dst" >> "$desktop"
-    fi
-  else
-    cat >"$desktop" <<EOF
-[Desktop Entry]
-Type=Application
-Name=${pretty}
-Exec=${exe}
-Icon=${icon_dst}
-Categories=Network;HamRadio;
-Terminal=false
-EOF
+# Expected executable after installation (from the .deb)
+APP_EXEC="/usr/bin/wsjtx"
+
+### ====== UTIL FUNCTIONS ================================================================
+have() { command -v "$1" >/dev/null 2>&1; }
+
+require_root() {
+  if [ "$(id -u)" -ne 0 ]; then
+    echo "Re-running with sudo..."
+    exec sudo -E bash "$0" "$@"
   fi
-
-  # Pin to GNOME/Cinnamon favorites
-  local desk="${XDG_CURRENT_DESKTOP:-${DESKTOP_SESSION:-}}"
-  local dlc schema key appid="${app}.desktop"
-  dlc="$(printf '%s' "$desk" | tr '[:upper:]' '[:lower:]')"
-  if echo "$dlc" | grep -q gnome; then schema="org.gnome.shell"; key="favorite-apps"
-  elif echo "$dlc" | grep -q cinnamon; then schema="org.cinnamon"; key="favorite-apps"
-  else
-    echo "info: unsupported desktop '$desk'; created $desktop"
-    return 0
-  fi
-  if command -v gsettings >/dev/null 2>&1 && gsettings list-schemas | grep -q "^$schema$"; then
-    local cur new
-    cur="$(gsettings get "$schema" "$key")"
-    new="$(printf '%s' "$cur" | sed -E 's/^\[|\]$//g')"
-    echo "$new" | grep -q "'$appid'" || gsettings set "$schema" "$key" "[$([ -n "$new" ] && echo "$new, ")'${appid}']"
-  fi
-
-  command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DESKTOP_DIR" >/dev/null 2>&1 || true
-  command -v gtk-update-icon-cache  >/dev/null 2>&1 && gtk-update-icon-cache -f "$(dirname "$(dirname "$ICON_DIR")")" >/dev/null 2>&1 || true
 }
 
-# --- install from tarball ---
-TMPDIR="$(mktemp -d)"; trap 'rm -rf "$TMPDIR"' EXIT
-echo "Downloading ${PRETTY} ${VER} tarball…"
-curl -fL "$TGZ_URL" -o "$TMPDIR/wsjtx.tgz"
+install_pkgs() {
+  # Minimal tools to download/install and manipulate favorites
+  sudo apt-get update -y
+  sudo apt-get install -y curl wget ca-certificates libglib2.0-bin # libglib2.0-bin provides gsettings
+}
 
-mkdir -p "$PREFIX_OPT"
-tar -xzf "$TMPDIR/wsjtx.tgz" -C "$PREFIX_OPT"
-# tarball usually extracts to wsjtx-${VER}/* with bin/ and share/
-# Ensure predictable path name (some tarballs include architecture suffixes)
-if [ ! -d "$APPDIR" ]; then
-  # try to detect actual dir
-  realdir="$(find "$PREFIX_OPT" -maxdepth 1 -type d -name "wsjtx-${VER}*" | head -n1 || true)"
-  [ -n "$realdir" ] && mv -f "$realdir" "$APPDIR"
-fi
+download_file() {
+  local url="$1" out="$2"
+  mkdir -p "$(dirname "$out")"
+  echo "Downloading: $url"
+  # Use wget first (handles SourceForge redirects well); fallback to curl
+  if have wget; then
+    wget -O "$out" --content-disposition --no-verbose "$url"
+  else
+    curl -L -o "$out" "$url"
+  fi
+}
 
-# sanity: must have a binary
-[ -x "$APPDIR/bin/wsjtx" ] || { echo "wsjtx binary not found inside tarball"; exit 1; }
+install_deb() {
+  local deb="$1"
+  echo "Installing package: $deb"
+  # Use apt to resolve dependencies from a local .deb
+  sudo apt-get install -y "$deb" || {
+    # Fallback to dpkg + fix
+    sudo dpkg -i "$deb" || true
+    sudo apt-get -f install -y
+  }
+}
 
-# link into ~/.local/bin
-mkdir -p "$BIN_DIR"
-ln -sf "$APPDIR/bin/wsjtx" "$BINDST"
+create_icon() {
+  mkdir -p "$ICON_DIR"
+  echo "Placing icon at: $ICON_PATH"
+  download_file "$ICON_URL" "$ICON_PATH"
+}
 
-# (Optional) Ensure data dir is in expected place alongside (the tarball ships share/wsjtx)
-[ -d "$APPDIR/share/wsjtx" ] || echo "warn: wsjtx share dir not found; resources may be missing"
+create_desktop_file() {
+  mkdir -p "$DESKTOP_DIR"
+  cat > "$DESKTOP_FILE" <<EOF
+[Desktop Entry]
+Name=${APP_NAME}
+GenericName=${APP_NAME}
+Comment=Weak-signal digital communication
+Exec=${APP_EXEC}
+Icon=${ICON_PATH}
+Terminal=false
+Type=Application
+Categories=AudioVideo;HamRadio;Network;Utility;
+StartupNotify=true
+EOF
+  echo "Created launcher: $DESKTOP_FILE"
+  # Ensure it shows up in app grid
+  update-desktop-database >/dev/null 2>&1 || true
+}
 
-# (Optional) suggest runtime deps if missing
-missing=$(ldd "$APPDIR/bin/wsjtx" | awk '/not found/{print $1}')
-if [ -n "$missing" ]; then
-  echo "⚠ Missing runtime libs:"
-  echo "$missing"
-  echo "On Debian/Ubuntu you may need: sudo apt-get install -y libqt5widgets5 libqt5network5 libqt5multimedia5 libfftw3-3 libgfortran5 libhamlib4"
-fi
+pin_to_taskbar() {
+  if ! have gsettings; then
+    echo "gsettings not found; cannot pin to GNOME taskbar automatically."
+    return 0
+  fi
 
-pin_app_taskbar "$APP" "$PRETTY" "$APP"
-echo "✓ ${PRETTY} ${VER} installed at $APPDIR and linked to $BINDST"
+  # Read current favorites as a GNOME array. We'll append our desktop if missing.
+  local key="org.gnome.shell favorite-apps"
+  local current
+  current="$(gsettings get ${key})" || current="[]"
+
+  # Use Python to treat the GNOME array as a Python list and merge safely.
+  # This avoids fragile sed/awk quoting issues.
+  local new_list
+  new_list="$(python3 - "$current" "$(basename "$DESKTOP_FILE")" <<'PY'
+import ast, sys
+arr_str = sys.argv[1]
+target = sys.argv[2]
+try:
+    arr = ast.literal_eval(arr_str)
+    if not isinstance(arr, list):
+        arr = []
+except Exception:
+    arr = []
+if target not in arr:
+    arr.append(target)
+print(str(arr).replace("'", '"'))  # gsettings accepts either, but double quotes look nicer
+PY
+)"
+  echo "Setting GNOME favorites to include: $(basename "$DESKTOP_FILE")"
+  gsettings set ${key} "${new_list}"
+}
+
+### ====== MAIN ==========================================================================
+
+# 1) Ensure required tools
+install_pkgs
+
+# 2) Download .deb + install
+mkdir -p "$WORKDIR"
+download_file "$DEB_URL" "$DEB_PATH"
+install_deb "$DEB_PATH"
+
+# 3) Drop icon + desktop launcher
+create_icon
+create_desktop_file
+
+# 4) Pin to taskbar (GNOME favorites)
+pin_to_taskbar
+
+echo
+echo "✅ ${APP_NAME} ${VERSION} installed."
+echo "   Launcher: ${DESKTOP_FILE}"
+echo "   Icon:     ${ICON_PATH}"
+echo "   If you update variables at the top (VERSION/DEB_URL/ICON_URL), re-run this script for future releases."
