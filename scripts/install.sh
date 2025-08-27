@@ -42,6 +42,8 @@ run() {
   echo "✓ $file"
 }
 
+cp $HOME/ham-scripts/overlay/config/templates/ $HOME/.config/
+
 run "./install-branding.sh"
 cd ..
 run "./install-setup-config-app.sh"
