@@ -43,7 +43,9 @@ run() {
 }
 
 run "./install-branding.sh"
-run ".~/ham-scripts/install-setup-config-app.sh"
+cd ..
+run "./install-setup-config-app.sh"
+cd scripts/
 run "./install-js8call.sh"
 run "./install-wsjtx.sh"
 run "./install-js8spotter.sh"
