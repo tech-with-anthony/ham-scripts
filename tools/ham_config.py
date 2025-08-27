@@ -111,8 +111,7 @@ def update_wsjt_x(cfg: Dict) -> Tuple[bool, str]:
             changed = True
         except Exception:
             pass
-    return changed, ("WSJT‑X updated" if changed else "WSJT‑X not found;
-skipped")
+    return changed, ("WSJT‑X updated" if changed else "WSJT‑X not found; skipped")
     
     
 def update_js8call(cfg: Dict) -> Tuple[bool, str]:
@@ -138,8 +137,7 @@ def update_js8call(cfg: Dict) -> Tuple[bool, str]:
             changed = True
         except Exception:
             pass
-    return changed, ("JS8Call updated" if changed else "JS8Call not found;
-skipped")
+    return changed, ("JS8Call updated" if changed else "JS8Call not found; skipped")
     
     
 def update_js8spotter(cfg: Dict) -> Tuple[bool, str]:
