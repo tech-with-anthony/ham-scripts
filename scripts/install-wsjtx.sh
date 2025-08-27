@@ -176,3 +176,8 @@ echo "✅ ${APP_NAME} ${VERSION} installed."
 echo "   Launcher: ${DESKTOP_FILE}"
 echo "   Icon:     ${ICON_PATH}"
 echo "   If you update variables at the top (VERSION/DEB_URL/ICON_URL), re-run this script for future releases."
+
+# --- Ham-Scripts User Config Integration ---
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/tools/config_integration.sh"
+post_install_apply_ham_config
