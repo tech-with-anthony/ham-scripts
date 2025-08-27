@@ -42,7 +42,8 @@ run() {
   echo "✓ $file"
 }
 
-cp $HOME/ham-scripts/overlay/config/templates/ $HOME/.config/
+cp $HOME/ham-scripts/overlay/config/templates/JS8Call.ini $HOME/.config/JS8Call.ini
+cp $HOME/ham-scripts/overlay/config/templates/WSJT-X.ini $HOME/.config/WSJT-X.ini
 
 run "./install-branding.sh"
 cd ..
