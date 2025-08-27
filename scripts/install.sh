@@ -6,6 +6,16 @@
 # Purpose : Master user-level install (no sudo)
 set -euo pipefail
 
+# --- Ensure Ham-Scripts Config App is installed ---
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [[ -x "$SCRIPT_DIR/install-setup-config-app.sh" ]]; then
+  echo "[ham-scripts] Installing Ham-Scripts Config App..."
+  "$SCRIPT_DIR/install-setup-config-app.sh"
+else
+  echo "[ham-scripts] WARNING: install-setup-config-app.sh not found"
+fi
+
+
 # refuse root
 if [ "${EUID:-$(id -u)}" -eq 0 ]; then
   echo "Don't run install.sh as root. This is a user-level installer." >&2
