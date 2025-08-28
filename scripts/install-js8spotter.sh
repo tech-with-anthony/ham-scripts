@@ -157,5 +157,5 @@ echo "   Icon: ${ICON_PATH}"
 
 # --- Ham-Scripts User Config Integration ---
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SCRIPT_DIR/tools/config_integration.sh"
+source "$REPO_ROOT/tools/config_integration.sh"
 post_install_apply_ham_config
