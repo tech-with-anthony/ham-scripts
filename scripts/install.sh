@@ -52,6 +52,7 @@ cd scripts/
 run "./install-js8call.sh"
 run "./install-wsjtx.sh"
 run "./install-js8spotter.sh"
+run "./setup-radio-devices.sh"
 run "./install-wine.sh"
 
 # show post-install notes if present
