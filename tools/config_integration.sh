@@ -6,7 +6,7 @@
 # Purpose : Common helpers to install & apply the Ham-Scripts configuration
 # Source this from any install-*.sh
 
-et -euo pipefail
+set -euo pipefail
 
 REPO_DIR_DEFAULT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_DIR="${REPO_DIR:-$REPO_DIR_DEFAULT}"
