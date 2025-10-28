@@ -15,7 +15,7 @@ VERSION="2.2.0"
 DEB_URL="http://files.js8call.com/${VERSION}/js8call_${VERSION}_20.04_amd64.deb"
 
 # Custom icon (PNG) from your repo
-ICON_URL="https://raw.githubusercontent.com/thetechnicalham/ham-scripts/main/app-icons/js8call.png"
+ICON_URL="https://raw.githubusercontent.com/tech-with-anthony/ham-scripts/main/app-icons/js8call.png"
 
 ### ====== LOCATIONS =====================================================================
 WORKDIR="${TMPDIR:-/tmp}/install-${APP_ID}"
