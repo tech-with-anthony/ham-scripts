@@ -15,7 +15,7 @@ VERSION="117"
 ZIP_URL="https://kf7mix.com/files/js8spotter/js8spotter-${VERSION}.zip"
 
 # Custom icon (PNG) from your repo — update path/branch if you move it
-ICON_URL="https://raw.githubusercontent.com/thetechnicalham/ham-scripts/main/app-icons/js8spotter.png"
+ICON_URL="https://raw.githubusercontent.com/tech-with-anthony/ham-scripts/main/app-icons/js8spotter.png"
 
 ### ====== LOCATIONS (usually leave alone) ===============================================
 WORKDIR="${TMPDIR:-/tmp}/install-${APP_ID}"
