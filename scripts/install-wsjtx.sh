@@ -15,7 +15,7 @@ VERSION="2.7.0"
 DEB_URL="https://sourceforge.net/projects/wsjt/files/wsjtx-${VERSION}/wsjtx_${VERSION}_amd64.deb"
 
 # Custom icon (PNG) — update URL or branch/path if you move it
-ICON_URL="https://raw.githubusercontent.com/thetechnicalham/ham-scripts/main/app-icons/wsjtx.png"
+ICON_URL="https://raw.githubusercontent.com/tech-with-anthony/ham-scripts/main/app-icons/wsjtx.png"
 
 ### ====== LOCATIONS (rarely change) =====================================================
 WORKDIR="${TMPDIR:-/tmp}/install-${APP_ID}"
